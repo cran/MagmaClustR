@@ -4,7 +4,7 @@
 \alias{ve_step}
 \title{E-Step of the VEM algorithm}
 \usage{
-ve_step(db, m_k, kern_k, kern_i, hp_k, hp_i, old_mixture, pen_diag)
+ve_step(db, m_k, kern_k, kern_i, hp_k, hp_i, old_mixture, iter, pen_diag)
 }
 \arguments{
 \item{db}{A tibble or data frame. Columns required: ID, Input, Output.
@@ -25,6 +25,8 @@ associated with \code{kern_i}.}
 
 \item{old_mixture}{A list of mixture values from the previous iteration.}
 
+\item{iter}{A number, indicating the current iteration of the VEM algorithm.}
+
 \item{pen_diag}{A number. A jitter term, added on the diagonal to prevent
 numerical issues when inverting nearly singular matrices.}
 }
@@ -43,3 +45,4 @@ for the mean processes and mixture variables involved in MagmaClust.
 \examples{
 TRUE
 }
+\keyword{internal}

@@ -19,6 +19,8 @@
 #'
 #' @importFrom rlang .data
 #'
+#' @keywords internal
+#'
 #' @examples
 #' TRUE
 simu_indiv_se <- function(ID, input, covariate, mean, v, l, sigma) {
@@ -51,6 +53,8 @@ simu_indiv_se <- function(ID, input, covariate, mean, v, l, sigma) {
 #' @param int An interval of values we want to draw uniformly in.
 #'
 #' @return A 2-decimals-rounded random number
+#'
+#' @keywords internal
 #'
 #' @examples
 #' TRUE
@@ -115,7 +119,7 @@ draw <- function(int) {
 #' data = simu_db(common_input = FALSE)
 #'
 #' ## Generate a dataset with an additional column indicating the true clusters
-#' data = simu_db(K = 3, covariate = TRUE)
+#' data = simu_db(K = 3, add_clust = TRUE)
 simu_db <- function(M = 10,
                     N = 10,
                     K = 1,
@@ -125,13 +129,13 @@ simu_db <- function(M = 10,
                     common_hp = TRUE,
                     add_hp = FALSE,
                     add_clust = FALSE,
-                    int_mu_v = c(0, 2),
-                    int_mu_l = c(0, 2),
-                    int_i_v = c(0, 2),
-                    int_i_l = c(0, 2),
-                    int_i_sigma = c(0, 1),
+                    int_mu_v = c(4, 5),
+                    int_mu_l = c(0, 1),
+                    int_i_v = c(1, 2),
+                    int_i_l = c(0, 1),
+                    int_i_sigma = c(0, 0.2),
                     m0_slope = c(-5, 5),
-                    m0_intercept = c(-10, 10),
+                    m0_intercept = c(-50, 50),
                     int_covariate = c(-5, 5)) {
   if (common_input) {
     t_i <- sample(grid, N, replace = F) %>% sort()
@@ -221,15 +225,17 @@ simu_db <- function(M = 10,
 #'
 #' @return A tibble containing the initial clustering obtained through kmeans.
 #'
+#' @keywords internal
+#'
 #' @examples
 #' TRUE
 ini_kmeans <- function(data, k, nstart = 50, summary = FALSE) {
-  if (!identical(
-    unique(data$Input),
-    data %>%
-      dplyr::filter(.data$ID == unique(data$ID)[[1]]) %>%
-      dplyr::pull(.data$Input)
-  )) {
+  # if (!identical(
+  #   unique(data$Input),
+  #   data %>%
+  #     dplyr::filter(.data$ID == unique(data$ID)[[1]]) %>%
+  #     dplyr::pull(.data$Input)
+  # )) {
     floop <- function(i) {
       obs_i <- data %>%
         dplyr::filter(.data$ID == i) %>%
@@ -245,9 +251,9 @@ ini_kmeans <- function(data, k, nstart = 50, summary = FALSE) {
       lapply(floop) %>%
       dplyr::bind_rows() %>%
       dplyr::select(c(.data$ID, .data$Input, .data$Output))
-  } else {
-    db_regular <- data %>% dplyr::select(c(.data$ID, .data$Input, .data$Output))
-  }
+  # } else {
+  # db_regular <- data %>% dplyr::select(c(.data$ID, .data$Input, .data$Output))
+  # }
 
   res <- db_regular %>%
     tidyr::spread(key = .data$Input, value = .data$Output) %>%
@@ -284,6 +290,8 @@ ini_kmeans <- function(data, k, nstart = 50, summary = FALSE) {
 #'
 #' @return A tibble indicating for each \code{ID} in which cluster it belongs
 #'    after a kmeans initialisation.
+#'
+#' @keywords internal
 #'
 #' @examples
 #' TRUE

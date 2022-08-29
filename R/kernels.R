@@ -15,6 +15,8 @@
 #'
 #' @return A scalar, corresponding to the evaluation of the kernel.
 #'
+#' @keywords internal
+#'
 #' @examples
 #' TRUE
 se_kernel <- function(
@@ -66,6 +68,8 @@ se_kernel <- function(
 #'
 #'
 #' @return A scalar, corresponding to the evaluation of the kernel.
+#'
+#' @keywords internal
 #'
 #' @examples
 #' TRUE
@@ -130,6 +134,8 @@ perio_kernel <- function(
 #'
 #' @return A scalar, corresponding to the evaluation of the kernel.
 #'
+#' @keywords internal
+#'
 #' @examples
 #' TRUE
 rq_kernel <- function(
@@ -188,6 +194,8 @@ rq_kernel <- function(
 #'    If FALSE, the \code{x} and \code{y} arguments are simply two inputs.
 #'
 #' @return A scalar, corresponding to the evaluation of the kernel.
+#'
+#' @keywords internal
 #'
 #' @examples
 #' TRUE
@@ -253,7 +261,7 @@ lin_kernel <- function(
 #' @param noise A logical value, indicating whether a 'noise' hyper-parameter
 #'    should be included.
 #' @param common_hp A logical value, indicating whether the set of
-#'    hyper-parameters is assumed to be common to all indiviuals.
+#'    hyper-parameters is assumed to be common to all individuals.
 #'
 #' @return A tibble, providing a set of random hyper-parameters associated with
 #'   the kernel specified through the argument \code{kern}.
@@ -271,8 +279,8 @@ hp <- function(
   ## Initiate interval boundaries
   min <- 0
   max <- 3
-  min_noise <- -2
-  max_noise <- 0
+  min_noise <- -5
+  max_noise <- -1
 
   len <- 1
 

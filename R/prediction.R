@@ -17,6 +17,14 @@
 #'    with no constraints on the column names. These covariates are additional
 #'    inputs (explanatory variables) of the models that are also observed at
 #'    each reference 'Input'.
+#' @param grid_inputs The grid of inputs (reference Input and covariates) values
+#'    on which the GP should be evaluated. Ideally, this argument should be a
+#'    tibble or a data frame, providing the same columns as \code{data}, except
+#'    'Output'. Nonetheless, in cases where \code{data} provides only one
+#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
+#'    vector. This vector would be used as reference input for prediction and if
+#'    NULL, a vector of length 500 is defined, ranging between the min and max
+#'    Input values of \code{data}.
 #' @param mean Mean parameter of the GP. This argument can be specified under
 #'    various formats, such as:
 #'    - NULL (default). The mean would be set to 0 everywhere.
@@ -47,14 +55,6 @@
 #'    elements are treated sequentially from the left to the right, the product
 #'    operator '*' shall always be used before the '+' operators (e.g.
 #'    'SE * LIN + RQ' is valid whereas 'RQ + SE * LIN' is  not).
-#' @param grid_inputs The grid of inputs (reference Input and covariates) values
-#'    on which the GP should be evaluated. Ideally, this argument should be a
-#'    tibble or a data frame, providing the same columns as \code{data}, except
-#'    'Output'. Nonetheless, in cases where \code{data} provides only one
-#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
-#'    vector. This vector would be used as reference input for prediction and if
-#'    NULL, a vector of length 500 is defined, ranging between the min and max
-#'    Input values of \code{data}.
 #' @param get_full_cov A logical value, indicating whether the full posterior
 #'    covariance matrix should be returned.
 #' @param plot A logical value, indicating whether a plot of the results is
@@ -73,13 +73,16 @@
 #' @examples
 #' TRUE
 pred_gp <- function(data,
+                    grid_inputs = NULL,
                     mean = NULL,
                     hp = NULL,
                     kern = "SE",
-                    grid_inputs = NULL,
                     get_full_cov = FALSE,
                     plot = TRUE,
                     pen_diag = 1e-10) {
+  ## Remove possible missing data
+  data <- data %>% tidyr::drop_na()
+
   ## Extract the observed Output (data points)
   data_obs <- data %>%
     dplyr::arrange(.data$Input) %>%
@@ -381,6 +384,9 @@ hyperposterior <- function(data,
                            prior_mean = NULL,
                            grid_inputs = NULL,
                            pen_diag = 1e-10) {
+  ## Remove possible missing data
+  data <- data %>% tidyr::drop_na()
+
   if (grid_inputs %>% is.null()) {
     ## Define the union of all reference Inputs in the dataset
     all_input <- unique(data$Input) %>% sort()
@@ -447,6 +453,8 @@ hyperposterior <- function(data,
     )
   }
 
+  ## Certify that IDs are of type 'character'
+  data$ID <- data$ID %>% as.character()
   ## Compute all the inverse covariance matrices
   inv_0 <- kern_to_inv(all_input, kern_0, hp_0, pen_diag)
   list_inv_i <- list_kern_to_inv(data, kern_i, hp_i, pen_diag)
@@ -527,6 +535,14 @@ hyperposterior <- function(data,
 #' @param trained_model A list, containing  the information coming from a
 #'    Magma model, previously trained using the \code{\link{train_magma}}
 #'    function.
+#' @param grid_inputs The grid of inputs (reference Input and covariates) values
+#'    on which the GP should be evaluated. Ideally, this argument should be a
+#'    tibble or a data frame, providing the same columns as \code{data}, except
+#'    'Output'. Nonetheless, in cases where \code{data} provides only one
+#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
+#'    vector. This vector would be used as reference input for prediction and if
+#'    NULL, a vector of length 500 is defined, ranging between the min and max
+#'    Input values of \code{data}.
 #' @param hp A named vector, tibble or data frame of hyper-parameters
 #'    associated with \code{kern}. The columns/elements should be named
 #'    according to the hyper-parameters that are used in \code{kern}. The
@@ -548,14 +564,6 @@ hyperposterior <- function(data,
 #'    elements are treated sequentially from the left to the right, the product
 #'    operator '*' shall always be used before the '+' operators (e.g.
 #'    'SE * LIN + RQ' is valid whereas 'RQ + SE * LIN' is  not).
-#' @param grid_inputs The grid of inputs (reference Input and covariates) values
-#'    on which the GP should be evaluated. Ideally, this argument should be a
-#'    tibble or a data frame, providing the same columns as \code{data}, except
-#'    'Output'. Nonetheless, in cases where \code{data} provides only one
-#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
-#'    vector. This vector would be used as reference input for prediction and if
-#'    NULL, a vector of length 500 is defined, ranging between the min and max
-#'    Input values of \code{data}.
 #' @param hyperpost A list, containing the elements 'mean' and 'cov', the
 #'    parameters of the hyper-posterior distribution of the mean process.
 #'    Typically, this argument should come from a previous learning using
@@ -592,14 +600,17 @@ hyperposterior <- function(data,
 #' TRUE
 pred_magma <- function(data,
                        trained_model = NULL,
+                       grid_inputs = NULL,
                        hp = NULL,
                        kern = "SE",
-                       grid_inputs = NULL,
                        hyperpost = NULL,
                        get_hyperpost = FALSE,
                        get_full_cov = FALSE,
                        plot = TRUE,
                        pen_diag = 1e-10) {
+  ## Remove possible missing data
+  data <- data %>% tidyr::drop_na()
+
   ## Extract the observed Output (data points)
   data_obs <- data %>%
     dplyr::arrange(.data$Input) %>%
@@ -762,6 +773,8 @@ pred_magma <- function(data,
   ## Extract or learn the hyper-parameters if not provided
   if (hp %>% is.null()) {
     if (!is.null(trained_model)) {
+      ## Retrieve the kernel used for training
+      kern <- trained_model$ini_args$kern_i
       ## Check whether hyper-parameters are common if we have 'trained_model'
       if (
         tryCatch(trained_model$ini_args$common_hp, error = function(e) FALSE)
@@ -901,6 +914,17 @@ pred_magma <- function(data,
 #'    with no constraints on the column names. These covariates are additional
 #'    inputs (explanatory variables) of the models that are also observed at
 #'    each reference 'Input'.
+#' @param trained_model A list, containing  the information coming from a
+#'    Magma model, previously trained using the \code{\link{train_magma}}
+#'    function.
+#' @param grid_inputs The grid of inputs (reference Input and covariates) values
+#'    on which the GP should be evaluated. Ideally, this argument should be a
+#'    tibble or a data frame, providing the same columns as \code{data}, except
+#'    'Output'. Nonetheless, in cases where \code{data} provides only one
+#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
+#'    vector. This vector would be used as reference input for prediction and if
+#'    NULL, a vector of length 500 is defined, ranging between the min and max
+#'    Input values of \code{data}.
 #' @param mean Mean parameter of the GP. This argument can be specified under
 #'    various formats, such as:
 #'    - NULL (default). The mean would be set to 0 everywhere.
@@ -909,9 +933,6 @@ pred_magma <- function(data,
 #'    - A tibble or data frame. Required columns: Input, Output. The Input
 #'     values should include at least the same values as in the \code{data}
 #'     argument.
-#' @param trained_model A list, containing  the information coming from a
-#'    Magma model, previously trained using the \code{\link{train_magma}}
-#'    function.
 #' @param hp A named vector, tibble or data frame of hyper-parameters
 #'    associated with \code{kern}. The columns/elements should be named
 #'    according to the hyper-parameters that are used in \code{kern}. The
@@ -933,14 +954,6 @@ pred_magma <- function(data,
 #'    elements are treated sequentially from the left to the right, the product
 #'    operator '*' shall always be used before the '+' operators (e.g.
 #'    'SE * LIN + RQ' is valid whereas 'RQ + SE * LIN' is  not).
-#' @param grid_inputs The grid of inputs (reference Input and covariates) values
-#'    on which the GP should be evaluated. Ideally, this argument should be a
-#'    tibble or a data frame, providing the same columns as \code{data}, except
-#'    'Output'. Nonetheless, in cases where \code{data} provides only one
-#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
-#'    vector. This vector would be used as reference input for prediction and if
-#'    NULL, a vector of length 500 is defined, ranging between the min and max
-#'    Input values of \code{data}.
 #' @param hyperpost A list, containing the elements 'mean' and 'cov', the
 #'    parameters of the hyper-posterior distribution of the mean process.
 #'    Typically, this argument should from a previous learning using
@@ -965,12 +978,15 @@ pred_magma <- function(data,
 #' TRUE
 pred_gif <- function(data,
                      trained_model = NULL,
+                     grid_inputs = NULL,
                      hyperpost = NULL,
                      mean = NULL,
                      hp = NULL,
                      kern = "SE",
-                     grid_inputs = NULL,
                      pen_diag = 1e-10) {
+  ## Remove possible missing data
+  data <- data %>% tidyr::drop_na()
+
   ## Extract the inputs (reference Input + covariates)
   inputs <- data %>% dplyr::select(-.data$Output)
   ## Remove the 'ID' column if present
@@ -1132,13 +1148,20 @@ hyperposterior_clust <- function(data,
                                  prior_mean_k = NULL,
                                  grid_inputs = NULL,
                                  pen_diag = 1e-10) {
+  ## Remove possible missing data
+  data <- data %>% tidyr::drop_na()
+
   ## Get the number of clusters
   nb_cluster <- hp_k %>%
     dplyr::pull(.data$ID) %>%
     length()
   ## Get the name of clusters
   ID_k <- hp_k %>%
-    dplyr::pull(.data$ID)
+    dplyr::pull(.data$ID) %>%
+    as.character()
+
+  ## Certify that IDs are of type 'character'
+  data$ID <- data$ID %>% as.character()
 
   if (grid_inputs %>% is.null()) {
     ## Define the union of all reference Inputs in the dataset
@@ -1309,6 +1332,14 @@ hyperposterior_clust <- function(data,
 #'    \code{\link{train_magmaclust}} function. If \code{trained_model} is set to
 #'    NULL, the \code{hyperpost} and \code{prop_mixture} arguments are mandatory
 #'    to perform required re-computations for the prediction to succeed.
+#' @param grid_inputs The grid of inputs (reference Input and covariates) values
+#'    on which the GP should be evaluated. Ideally, this argument should be a
+#'    tibble or a data frame, providing the same columns as \code{data}, except
+#'    'Output'. Nonetheless, in cases where \code{data} provides only one
+#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
+#'    vector. This vector would be used as reference input for prediction and if
+#'    NULL, a vector of length 500 is defined, ranging between the min and max
+#'    Input values of \code{data}.
 #' @param mixture A tibble or data frame, indicating the mixture probabilities
 #'     of each cluster for the new individual/task.
 #'     If NULL, the \code{\link{train_gp_clust}} function is used to compute
@@ -1334,14 +1365,6 @@ hyperposterior_clust <- function(data,
 #'    elements are treated sequentially from the left to the right, the product
 #'    operator '*' shall always be used before the '+' operators (e.g.
 #'    'SE * LIN + RQ' is valid whereas 'RQ + SE * LIN' is  not).
-#' @param grid_inputs The grid of inputs (reference Input and covariates) values
-#'    on which the GP should be evaluated. Ideally, this argument should be a
-#'    tibble or a data frame, providing the same columns as \code{data}, except
-#'    'Output'. Nonetheless, in cases where \code{data} provides only one
-#'    'Input' column, the \code{grid_inputs} argument can be NULL (default) or a
-#'    vector. This vector would be used as reference input for prediction and if
-#'    NULL, a vector of length 500 is defined, ranging between the min and max
-#'    Input values of \code{data}.
 #' @param hyperpost A list, containing the elements \code{mean}, \code{cov} and
 #'   \code{mixture} the parameters of the hyper-posterior distributions of the
 #'    mean processes. Typically, this argument should come from a previous
@@ -1392,16 +1415,19 @@ hyperposterior_clust <- function(data,
 #' TRUE
 pred_magmaclust <- function(data,
                             trained_model = NULL,
+                            grid_inputs = NULL,
                             mixture = NULL,
                             hp = NULL,
                             kern = "SE",
-                            grid_inputs = NULL,
                             hyperpost = NULL,
                             prop_mixture = NULL,
                             get_hyperpost = FALSE,
                             get_full_cov = FALSE,
                             plot = TRUE,
                             pen_diag = 1e-10) {
+  ## Remove possible missing data
+  data <- data %>% tidyr::drop_na()
+
   ## Extract the observed Output (data points)
   data_obs <- data %>%
     dplyr::arrange(.data$Input) %>%
@@ -1512,44 +1538,33 @@ pred_magmaclust <- function(data,
     } else {
       ## Get the hyper-posterior distribution from the trained model
       hyperpost <- trained_model$hyperpost
-
-      ## Check hyperpost format (in particular presence of all reference Input)
-      if (!all(all_input %in% hyperpost$mean[[1]]$Input)) {
-        cat(
-          "The hyper-posterior distribution of the mean process provided in",
-          "'hyperpost' argument isn't evaluated on the expected inputs.",
-          "Start evaluating the hyper-posterior on the correct inputs...\n \n"
-        )
-        hyperpost <- hyperposterior_clust(
-          data = trained_model$ini_args$data,
-          mixture = trained_model$hyperpost$mixture,
-          hp_k = trained_model$hp_k,
-          hp_i = trained_model$hp_i,
-          kern_k = trained_model$ini_args$kern_k,
-          kern_i = trained_model$ini_args$kern_i,
-          prior_mean_k = trained_model$ini_args$prior_mean_k,
-          grid_inputs = all_input,
-          pen_diag = pen_diag
-        )
-        cat("Done!\n \n")
-      }
     }
-  } else if (hyperpost %>% is.list()) {
-    ## Check hyperpost format
-    if (!is.null(hyperpost$mean)) {
-      ## Check hyperpost format (in particular presence of all reference Input
-      if (!all(all_input %in% hyperpost$mean[[1]]$Input)) {
-        stop(
-          "The hyper-posterior distribution of the mean processes provided ",
-          "in the 'hyperpost' argument isn't evaluated on expected inputs. ",
-          "Please provide a 'trained_model' argument for re-computation. "
-        )
-      }
-    } else {
-      stop(
-        "The format of the 'hyperpost' argument is not as expected. Please ",
-        "read ?pred_magmaclust() for details."
+  }
+
+  ## Check hyperpost format
+  if ((hyperpost %>% is.list()) &
+      (!is.null(hyperpost$mean[[1]])) &
+      (!is.null(hyperpost$cov[[1]]))
+  ) {
+    ## Check hyperpost format (in particular presence of all reference Input)
+    if (!all(all_input %in% hyperpost$mean[[1]]$Input)) {
+      cat(
+        "The hyper-posterior distribution of the mean processes provided in",
+        "'hyperpost' argument isn't evaluated on the expected inputs.\n \n",
+        "Start evaluating the hyper-posterior on the correct inputs...\n \n"
       )
+      hyperpost <- hyperposterior_clust(
+        data = trained_model$ini_args$data,
+        mixture = trained_model$hyperpost$mixture,
+        hp_k = trained_model$hp_k,
+        hp_i = trained_model$hp_i,
+        kern_k = trained_model$ini_args$kern_k,
+        kern_i = trained_model$ini_args$kern_i,
+        prior_mean_k = trained_model$ini_args$prior_mean_k,
+        grid_inputs = all_input,
+        pen_diag = pen_diag
+      )
+      cat("Done!\n \n")
     }
   } else {
     stop(
@@ -1564,6 +1579,8 @@ pred_magmaclust <- function(data,
   ## Extract or learn the hyper-parameters if not provided
   if (hp %>% is.null()) {
     if (!is.null(trained_model)) {
+      ## Retrieve the kernel used for training
+      kern <- trained_model$ini_args$kern_i
       ## Check whether hyper-parameters are common if we have 'trained_model'
       if (tryCatch(trained_model$ini_args$common_hp_i,
                    error = function(e) FALSE

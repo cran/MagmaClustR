@@ -14,15 +14,18 @@
 #'    associated with \code{kern_k}.
 #' @param hp_i A named vector, tibble or data frame of hyper-parameters
 #'    associated with \code{kern_i}.
+#' @param old_mixture A list of mixture values from the previous iteration.
+#' @param iter A number, indicating the current iteration of the VEM algorithm.
 #' @param pen_diag A number. A jitter term, added on the diagonal to prevent
 #'    numerical issues when inverting nearly singular matrices.
-#' @param old_mixture A list of mixture values from the previous iteration.
 #'
 #' @return A named list, containing the elements \code{mean}, a tibble
 #'    containing the Input and associated Output of the hyper-posterior mean
 #'    parameters, \code{cov}, the hyper-posterior covariance matrices,
 #'    and \code{mixture}, the probabilities to belong to each cluster for each
 #'    individual.
+#'
+#' @keywords internal
 #'
 #' @examples
 #' TRUE
@@ -33,6 +36,7 @@ ve_step <- function(db,
                     hp_k,
                     hp_i,
                     old_mixture,
+                    iter,
                     pen_diag) {
   prop_mixture_k <- hp_k %>%
     dplyr::pull(.data$prop_mixture, name = .data$ID)
@@ -76,8 +80,6 @@ ve_step <- function(db,
   }
   cov_k <- sapply(names(m_k), floop, simplify = FALSE, USE.NAMES = TRUE)
 
-  ##############################################
-
   ## Update the posterior mean for each cluster ##
 
   floop2 <- function(k) {
@@ -108,16 +110,20 @@ ve_step <- function(db,
   }
   mean_k <- sapply(names(m_k), floop2, simplify = FALSE, USE.NAMES = TRUE)
 
-  ## Update mixture
-  mixture <- update_mixture(
-    db,
-    mean_k,
-    cov_k,
-    hp_i,
-    kern_i,
-    prop_mixture_k,
-    pen_diag
-  )
+  ## Update mixture (skip first iteration to avoid bad HP initialisation issues)
+  if(iter == 1){
+    mixture <- old_mixture
+  } else{
+    mixture <- update_mixture(
+      db,
+      mean_k,
+      cov_k,
+      hp_i,
+      kern_i,
+      prop_mixture_k,
+      pen_diag
+    )
+  }
 
   list(
     "mean" = mean_k,
@@ -161,6 +167,8 @@ ve_step <- function(db,
 #'    associated with the individual GPs, and \code{prop_mixture_k},
 #'    a tibble containing the hyper-parameters associated with each individual,
 #'    indicating the probabilities to belong to each cluster.
+#'
+#' @keywords internal
 #'
 #' @examples
 #' TRUE
@@ -210,7 +218,7 @@ vm_step <- function(db,
       dplyr::slice(1)
 
     ## Optimise hyper-parameters of the individual processes
-    new_hp_i <- optimr::opm(
+    new_hp_i <- stats::optim(
       par = par_i,
       fn = elbo_clust_multi_GP_common_hp_i,
       gr = gr_clust_multi_GP_common_hp_i,
@@ -219,10 +227,9 @@ vm_step <- function(db,
       kern = kern_i,
       pen_diag = pen_diag,
       method = "L-BFGS-B",
-      control = list(kkt = F)
-    ) %>%
-      dplyr::select(list_hp_i) %>%
-      tibble::as_tibble() %>%
+      control = list(factr = 1e13, maxit = 25)
+    )$par %>%
+      tibble::as_tibble_row() %>%
       tidyr::uncount(weights = length(list_ID_i)) %>%
       dplyr::mutate("ID" = list_ID_i, .before = 1)
   } else {
@@ -235,7 +242,7 @@ vm_step <- function(db,
       db_i <- db %>% dplyr::filter(.data$ID == i)
 
       ## Optimise hyper-parameters of the individual processes
-      optimr::opm(
+      stats::optim(
         par = par_i,
         fn = elbo_clust_multi_GP,
         gr = gr_clust_multi_GP,
@@ -244,10 +251,9 @@ vm_step <- function(db,
         hyperpost = list_mu_param,
         kern = kern_i,
         method = "L-BFGS-B",
-        control = list(kkt = F)
-      ) %>%
-        dplyr::select(list_hp_i) %>%
-        tibble::as_tibble() %>%
+        control = list(factr = 1e13, maxit = 25)
+      )$par %>%
+        tibble::as_tibble_row() %>%
         return()
     }
     new_hp_i <- sapply(list_ID_i, loop2, simplify = FALSE, USE.NAMES = TRUE) %>%
@@ -269,7 +275,7 @@ vm_step <- function(db,
       dplyr::select(-.data$prop_mixture)
 
     ## Optimise hyper-parameters of the processes of each cluster
-    new_hp_k <- optimr::opm(
+    new_hp_k <- stats::optim(
       par = par_k,
       fn = elbo_GP_mod_common_hp_k,
       gr = gr_GP_mod_common_hp_k,
@@ -279,10 +285,9 @@ vm_step <- function(db,
       post_cov = list_mu_param$cov,
       pen_diag = pen_diag,
       method = "L-BFGS-B",
-      control = list(kkt = F)
-    ) %>%
-      dplyr::select(list_hp_k) %>%
-      tibble::as_tibble() %>%
+      control = list(factr = 1e13, maxit = 25)
+    )$par %>%
+      tibble::as_tibble_row() %>%
       tidyr::uncount(weights = length(list_ID_k)) %>%
       dplyr::mutate("ID" = list_ID_k, .before = 1) %>%
       dplyr::mutate("prop_mixture" = prop_mixture)
@@ -301,7 +306,7 @@ vm_step <- function(db,
       post_cov_k <- list_mu_param$cov[[k]]
 
       ## Optimise hyper-parameters of the processes of each cluster
-      optimr::opm(
+      stats::optim(
         par = par_k,
         logL_GP_mod,
         gr = gr_GP_mod,
@@ -311,15 +316,14 @@ vm_step <- function(db,
         post_cov = post_cov_k,
         pen_diag = pen_diag,
         method = "L-BFGS-B",
-        control = list(kkt = FALSE)
-      ) %>%
-        dplyr::select(list_hp_k) %>%
-        tibble::as_tibble() %>%
+        control = list(factr = 1e13, maxit = 25)
+      )$par %>%
+        tibble::as_tibble_row() %>%
         return()
     }
     new_hp_k <- sapply(list_ID_k, loop, simplify = FALSE, USE.NAMES = TRUE) %>%
       tibble::enframe(name = "ID") %>%
-      tidyr::unnest_auto(.data$value) %>%
+      tidyr::unnest_wider(.data$value) %>%
       dplyr::mutate("prop_mixture" = prop_mixture)
   }
 
@@ -350,6 +354,8 @@ vm_step <- function(db,
 #'
 #' @return Compute the hyper-posterior multinomial distributions by updating
 #'    mixture probabilities.
+#'
+#' @keywords internal
 #'
 #' @examples
 #' TRUE
