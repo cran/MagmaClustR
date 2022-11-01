@@ -1,12 +1,15 @@
 Package: MagmaClustR
 Title: Clustering and Prediction using Multi-Task Gaussian Processes
         with Common Mean
-Version: 1.0.1
+Version: 1.1.0
 Authors@R: c(
-    person("Arthur", "Leroy", , "arthur.leroy.pro@gmail.com", role = c("aut", "cre"),
+    person("Arthur", "Leroy", , "arthur.leroy.pro@gmail.com",
+           role = c("aut", "cre"),
            comment = c(ORCID = "0000-0003-0806-8934")),
+    person("Pierre", "Latouche", , "pierre.latouche@gmail.com", role = "aut"),
     person("Pierre", "Pathé", , "pathepierre@gmail.com", role = "ctb"),
-    person("Pierre", "Latouche", , "pierre.latouche@gmail.com", role = "aut")
+    person("Alexia", "Grenouilla", , "grenouil@insa-toulouse.fr", role = "ctb"),
+    person("Hugo", "Lelievre", , "lelievre@insa-toulouse.fr", role = "ctb")
   )
 Description: An implementation for the multi-task Gaussian processes with common 
     mean framework. Two main algorithms, called 'Magma' and 'MagmaClust', 
@@ -29,18 +32,22 @@ License: MIT + file LICENSE
 URL: https://github.com/ArthurLeroy/MagmaClustR,
         https://arthurleroy.github.io/MagmaClustR/
 BugReports: https://github.com/ArthurLeroy/MagmaClustR/issues
-Imports: broom, dplyr, ggplot2, magrittr, methods, mvtnorm, Rcpp,
-        rlang, stats, tibble, tidyr, tidyselect
+Imports: broom, dplyr, ggplot2, magrittr, methods, mvtnorm, plyr,
+        purrr, Rcpp, rlang, stats, tibble, tidyr, tidyselect
 Suggests: gganimate, gifski, knitr, plotly, png, rmarkdown, testthat
         (>= 3.0.0), transformr
 LinkingTo: Rcpp
 Encoding: UTF-8
+LazyData: true
 RoxygenNote: 7.2.0
+Depends: R (>= 2.10)
 NeedsCompilation: yes
-Packaged: 2022-08-29 19:58:49 UTC; user
+Packaged: 2022-11-01 21:06:38 UTC; user
 Author: Arthur Leroy [aut, cre] (<https://orcid.org/0000-0003-0806-8934>),
+  Pierre Latouche [aut],
   Pierre Pathé [ctb],
-  Pierre Latouche [aut]
+  Alexia Grenouilla [ctb],
+  Hugo Lelievre [ctb]
 Maintainer: Arthur Leroy <arthur.leroy.pro@gmail.com>
 Repository: CRAN
-Date/Publication: 2022-08-29 20:20:02 UTC
+Date/Publication: 2022-11-01 21:46:39 UTC
