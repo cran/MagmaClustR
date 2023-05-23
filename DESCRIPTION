@@ -1,7 +1,7 @@
 Package: MagmaClustR
 Title: Clustering and Prediction using Multi-Task Gaussian Processes
         with Common Mean
-Version: 1.1.1
+Version: 1.1.2
 Authors@R: c(
     person("Arthur", "Leroy", , "arthur.leroy.pro@gmail.com",
            role = c("aut", "cre"),
@@ -18,7 +18,7 @@ Description: An implementation for the multi-task Gaussian processes with common
     The corresponding articles has been respectively proposed by Arthur Leroy, 
     Pierre Latouche, Benjamin Guedj and Servane Gey (2022) 
     <doi:10.1007/s10994-022-06172-1>, and Arthur Leroy, Pierre Latouche, 
-    Benjamin Guedj and Servane Gey (2020) <arXiv:2011.07866>.
+    Benjamin Guedj and Servane Gey (2023) <https://jmlr.org/papers/v24/20-1321.html>.
     Theses approaches leverage the learning of cluster-specific mean processes,
     which are common across similar tasks, to provide enhanced prediction
     performances (even far from data) at a linear computational cost (in
@@ -42,7 +42,7 @@ LazyData: true
 RoxygenNote: 7.2.3
 Depends: R (>= 2.10)
 NeedsCompilation: yes
-Packaged: 2023-01-16 15:25:56 UTC; Arthur Leroy
+Packaged: 2023-05-23 18:15:10 UTC; Arthur Leroy
 Author: Arthur Leroy [aut, cre] (<https://orcid.org/0000-0003-0806-8934>),
   Pierre Latouche [aut],
   Pierre Pathé [ctb],
@@ -50,4 +50,4 @@ Author: Arthur Leroy [aut, cre] (<https://orcid.org/0000-0003-0806-8934>),
   Hugo Lelievre [ctb]
 Maintainer: Arthur Leroy <arthur.leroy.pro@gmail.com>
 Repository: CRAN
-Date/Publication: 2023-01-17 09:40:16 UTC
+Date/Publication: 2023-05-23 18:32:03 UTC
