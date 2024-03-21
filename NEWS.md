@@ -1,9 +1,29 @@
 # MagmaClustR (development version)
 
+## Major
+## Minor
+
+# MagmaClustR 1.2.0
+
+## Major
+
+* Add new functions sample_gp() and sample_magmaclust() to sample from the posterior predictions of GPs, Magma, and MagmaClust
+* Propose a new visualisation based on posterior samples instead of Credible Intervals for both plot_gp() and plot_magmaclust()
+* Allow pred_*() functions to be used without providing the 'data' argument by returning the mean processes (or priors) as generic predictions. 
+
+## Minor 
+
+* Add an option to generate multiple curves from sample_gp()
+* Fix a bug when the 'Reference' column is present when using plot_gp() 
+* Fix the '\docType{package}' bug in roxygen2
+* Add 'plot_magma()' as a duplicated name for 'plot_gp()'
+* Remove the useless 'Reference' column in the prediction of the mean processes
+* Fix a bug when both 'pred' and 'samples' are provided in plot_samples()
+
 # MagmaClustR 1.1.2
 
 ## Minor 
-* Fix a bug occurring in pred_magmaclust() for a 'trained_model' with hp_i = FALSE
+* Fix a bug occurring in pred_magmaclust() for a 'trained_model' with hp_i=FALSE
 * Simplify the use of hyperposterior() and hyperposterior_clust() by providing a 'trained_model' argument.
 
 # MagmaClustR 1.1.1

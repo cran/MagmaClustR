@@ -94,6 +94,16 @@ plot_db <- function(data, cluster = FALSE, legend = FALSE) {
 #'    represented as a heatmap of probabilities for 1-dimensional inputs. If
 #'    FALSE (default), the mean curve and associated Credible Interval are
 #'    displayed.
+#' @param samples A logical value indicating whether the GP prediction should be
+#'    represented as a collection of samples drawn from the posterior. If
+#'    FALSE (default), the mean curve and associated Credible Interval are
+#'    displayed.
+#' @param nb_samples A number, indicating the number of samples to be drawn from
+#'    the predictive posterior distribution. For two-dimensional graphs, only
+#'    one sample can be displayed.
+#' @param plot_mean A logical value, indicating whether the mean prediction
+#'    should be displayed on the graph when \code{samples = TRUE}.
+#' @param alpha_samples A number, controlling transparency of the sample curves.
 #' @param prob_CI A number between 0 and 1 (default is 0.95), indicating the
 #'    level of the Credible Interval associated with the posterior mean curve.
 #'    If this this argument is set to 1, the Credible Interval is not displayed.
@@ -106,7 +116,8 @@ plot_db <- function(data, cluster = FALSE, legend = FALSE) {
 #' @return Visualisation of a Magma or GP prediction (optional: display data
 #'    points, training data points and the prior mean function). For 1-D
 #'    inputs, the prediction is represented as a mean curve and its associated
-#'    95%  Credible Interval, or as a heatmap of probabilities if
+#'    95%  Credible Interval, as a collection of samples drawn from the
+#'    posterior if \code{samples} = TRUE, or as a heatmap of probabilities if
 #'    \code{heatmap} = TRUE. For 2-D inputs, the prediction is represented as a
 #'    heatmap, where each couple of inputs on the x-axis and y-axis are
 #'    associated with a gradient of colours for the posterior mean values,
@@ -125,6 +136,10 @@ plot_gp <- function(pred_gp,
                     prior_mean = NULL,
                     y_grid = NULL,
                     heatmap = FALSE,
+                    samples = FALSE,
+                    nb_samples = 50,
+                    plot_mean = TRUE,
+                    alpha_samples = 0.3,
                     prob_CI = 0.95,
                     size_data = 3,
                     size_data_train = 1,
@@ -170,9 +185,14 @@ plot_gp <- function(pred_gp,
     )
   }
 
-  ## Remove 'ID' column is present
+  ## Remove 'ID' column if present
   if ("ID" %in% names(pred)) {
     pred <- pred %>% dplyr::select(-.data$ID)
+  }
+
+  ## Remove 'Reference' column if present
+  if ("Reference" %in% names(pred)) {
+    pred <- pred %>% dplyr::select(-.data$Reference)
   }
 
   ## Remove the 'Index' column if the prediction comes from 'pred_gif()'
@@ -211,24 +231,36 @@ plot_gp <- function(pred_gp,
 
   ## Display a heatmap if inputs are 2D
   if (ncol(inputs) == 2) {
-    ## Add the 'Index' column if the prediction comes from 'pred_gif()'
-    if (!is.null(index)) {
-      pred <- pred %>% dplyr::mutate("Index" = index)
-    }
 
-    gg <- ggplot2::ggplot() +
-      ggplot2::geom_raster(
-        data = pred,
-        ggplot2::aes_string(
-          x = names(inputs)[1],
-          y = names(inputs)[2],
-          fill = "Mean",
-          alpha = "CI_Width"
-        ),
-        interpolate = TRUE
-      ) +
-      ggplot2::scale_fill_distiller(palette = "RdPu", trans = "reverse") +
-      ggplot2::scale_alpha_continuous(range = c(0.1, 1), trans = "reverse")
+    if (samples){
+      ## Display samples from the posterior
+      gg <- plot_samples(
+        pred = pred_gp,
+        x_input = x_input,
+        nb_samples = nb_samples,
+        plot_mean = plot_mean,
+        alpha_samples = alpha_samples)
+
+    } else {
+      ## Add the 'Index' column if the prediction comes from 'pred_gif()'
+      if (!is.null(index)) {
+        pred <- pred %>% dplyr::mutate("Index" = index)
+      }
+
+      gg <- ggplot2::ggplot() +
+        ggplot2::geom_raster(
+          data = pred,
+          ggplot2::aes_string(
+            x = names(inputs)[1],
+            y = names(inputs)[2],
+            fill = "Mean",
+            alpha = "CI_Width"
+          ),
+          interpolate = TRUE
+        ) +
+        ggplot2::scale_fill_distiller(palette = "RdPu", trans = "reverse") +
+        ggplot2::scale_alpha_continuous(range = c(0.1, 1), trans = "reverse")
+    }
 
     if (!is.null(data)) {
       ## Round the 'Output' values to reduce size of labels on the graph
@@ -312,6 +344,15 @@ plot_gp <- function(pred_gp,
         ) +
         ggplot2::labs(fill = "Proba CI") +
         ggplot2::ylab("Output")
+    } else if (samples){
+      ## Display samples from the posterior
+      gg <- plot_samples(
+        pred = pred_gp,
+        x_input = x_input,
+        nb_samples = nb_samples,
+        plot_mean = plot_mean,
+        alpha_samples = alpha_samples)
+
     } else {
       ## Display a classic curve otherwise
       ## Add the 'Index' column if the prediction comes from 'pred_gif()'
@@ -385,80 +426,105 @@ plot_gp <- function(pred_gp,
     return()
 }
 
-#' Display realisations from a posterior GP
+#' @rdname plot_gp
+#' @export
+plot_magma <- plot_gp
+
+#' Display realisations from a (mixture of) GP prediction
 #'
-#' A realisation of a posterior GP distribution is drawn and displayed.
-#' According to the dimension of the inputs, the graph may be a curve or a
-#' heatmap.
+#' Display samples drawn from the posterior of a GP, Magma or
+#' MagmaClust prediction. According to the dimension of the inputs, the graph
+#' may represent curves or a heatmap.
 #'
-#' @param pred_gp A tibble or data frame, typically coming from
-#'    \code{\link{pred_magma}} or \code{\link{pred_gp}} functions. Required
-#'    columns: 'Input', 'Mean', 'Var'. Additional covariate columns may be
-#'    present in case of multi-dimensional inputs.
-#' @param x_input A vector of character strings, indicating which input should
-#'    be displayed. If NULL(default) the 'Input' column is used for the x-axis.
-#'    If providing a 2-dimensional vector, the corresponding columns are used
-#'    for the x-axis and y-axis.
-#' @param data (Optional) A tibble or data frame, containing the data used in
-#'    the GP prediction.
-#' @param data_train (Optional) A tibble or data frame, containing the training
-#'    data of the Magma model. The data set should have the same format as the
-#'    \code{data} argument with an additional column 'ID' for identifying the
-#'    different individuals/tasks. If provided, those data are displayed as
-#'    backward colourful points (each colour corresponding to one
-#'    individual/task).
-#' @param prior_mean (Optional) A tibble or a data frame, containing the 'Input'
-#'    and associated 'Output' prior mean parameter of the GP prediction.
-#' @param size_data A number, controlling the size of the \code{data} points.
-#' @param size_data_train A number, controlling the size of the
-#'    \code{data_train} points.
-#' @param alpha_data_train A number, between 0 and 1, controlling transparency
-#'    of the \code{data_train} points.
+#' @param pred A list, typically coming from \code{\link{pred_gp}},
+#'    \code{\link{pred_magma}} or \code{\link{pred_magmaclust}} functions, using
+#'    the argument 'get_full_cov = TRUE'. Required elements: \code{pred},
+#'    \code{cov}. This argument is needed if \code{samples} is missing.
+#' @param samples A tibble or data frame, containing the samples generated from
+#'    a GP, Magma, or MagmaClust prediction. Required columns: \code{Input},
+#'    \code{Sample}, \code{Output}.  This argument is needed if \code{pred}
+#'    is missing.
+#' @param nb_samples A number, indicating the number of samples to be drawn from
+#'    the predictive posterior distribution. For two-dimensional graphs, only
+#'    one sample can be displayed.
+#' @param x_input A vector of character strings, indicating which 'column'
+#'    should be displayed in the case of multidimensional inputs. If
+#'    NULL(default) the Input' column is used for the x-axis. If providing a
+#'    2-dimensional vector, the corresponding columns are used for the x-axis
+#'    and the y-axis.
+#' @param plot_mean A logical value, indicating whether the mean prediction
+#'    should be displayed on the graph.
+#' @param alpha_samples A number, controlling transparency of the sample curves.
 #'
-#' @return Draw and visualise from a posterior distribution from Magma or GP
-#'    prediction (optional: display data points, training data points and the
-#'    prior mean function).
+#' @return Graph of samples drawn from a posterior distribution of a GP,
+#'    Magma, or MagmaClust prediction.
 #' @export
 #'
 #' @examples
 #' TRUE
-sample_gp <- function(pred_gp,
-                      x_input = NULL,
-                      data = NULL,
-                      data_train = NULL,
-                      prior_mean = NULL,
-                      size_data = 3,
-                      size_data_train = 1,
-                      alpha_data_train = 0.5) {
-  if (is.data.frame(pred_gp) | !is.list(pred_gp)) {
-    stop(
-      "The 'pred_gp' argument should be a list containing 'pred' and 'cov' ",
-      "elements. Consider re-running the prediction function using the ",
-      "argument 'get_full_cov' = TRUE."
-    )
+plot_samples <- function(pred = NULL,
+                         samples = NULL,
+                         nb_samples = 50,
+                         x_input = NULL,
+                         plot_mean = TRUE,
+                         alpha_samples = 0.3
+                         ) {
+
+  ## Check whether 'samples' or 'pred' exist
+  if(is.null(samples) & is.null(pred) ){
+      stop("Either 'sample' or 'pred' is needed as an argument.")
   }
+
+  ## If provided, check format of 'pred' and extract the mixture prediction
+  if(!is.null(pred)){
+
+    ## Check 'pred' format
+    if (!(is.list(pred) & ('cov' %in% names(pred))) ) {
+      stop(
+        "The 'pred' argument should be a list containing 'pred' and 'cov' ",
+        "elements. Consider re-running the prediction function using the ",
+        "argument 'get_full_cov' = TRUE."
+      )
+    }
+
+    ## Check whether 'pred' is a GP/Magma or a MagmaClust prediction
+    if ('mixture_pred' %in% names(pred)){
+
+      ## If 'samples' is not provided, draw new samples
+      if(is.null(samples)){
+        samples = sample_magmaclust(pred_clust = pred, nb_samples = nb_samples)
+      }
+
+      mean_pred = pred$mixture_pred
+
+    } else {
+
+      ## If 'samples' is not provided, draw new samples
+      if(is.null(samples)){
+        samples = sample_gp(pred_gp = pred, nb_samples = nb_samples)
+      }
+
+      mean_pred = pred$pred
+    }
+  }
+
   ## Get the inputs that should be used
   if (x_input %>% is.null()) {
-    inputs <- pred_gp$pred %>% dplyr::select(-c(.data$Mean, .data$Var))
+    inputs <- samples %>% dplyr::select(-c(.data$Sample, .data$Output))
   } else {
-    inputs <- pred_gp$pred[x_input]
+    inputs <- samples[x_input]
   }
-
-  ## Extract the predictions for further displaying
-  input <- pred_gp$pred %>% dplyr::pull(.data$Input)
-  mean <- pred_gp$pred %>% dplyr::pull(.data$Mean)
-  cov <- pred_gp$cov
-
-  sample <-
-    tibble::tibble("Output" = mvtnorm::rmvnorm(1, mean, cov) %>%
-                     as.vector()) %>%
-    dplyr::bind_cols(inputs)
 
   ## Display a heatmap if inputs are 2D
   if (ncol(inputs) == 2) {
+    ## Extract only one sample when displaying in 2D
+    samples <- samples %>%
+      dplyr::filter(.data$Sample == unique(samples$Sample)[1]) %>%
+      dplyr::select(- .data$Sample)
+
     gg <- ggplot2::ggplot() +
       ggplot2::geom_raster(
-        data = sample,
+        data = samples,
         ggplot2::aes_string(
           x = names(inputs)[1],
           y = names(inputs)[2],
@@ -468,123 +534,37 @@ sample_gp <- function(pred_gp,
       ) +
       ggplot2::scale_fill_distiller(palette = "RdPu", trans = "reverse")
 
-    if (!is.null(data)) {
-      ## Round the 'Output' values to reduce size of labels on the graph
-      data <-
-        data %>% dplyr::mutate(Output = round(.data$Output, 1))
-
-      gg <- gg + ggplot2::geom_label(
-        data = data,
-        ggplot2::aes_string(
-          x = names(inputs)[1],
-          y = names(inputs)[2],
-          label = "Output",
-          fill = "Output"
-        ),
-        size = 3
-      )
-    }
   } else if (ncol(inputs) == 1) {
-    if (dplyr::n_distinct(inputs) != nrow(inputs)) {
-      warning(
-        "Some values on the x-axis appear multiple times, probably resulting ",
-        "in an incorrect graphical representation. Please consider ",
-        "recomputing predictions for more adequate inputs. "
-      )
-    }
     gg <- ggplot2::ggplot() +
       ggplot2::geom_line(
-        data = sample,
-        ggplot2::aes_string(
-          x = names(inputs)[1],
-          y = "Output"
-        ),
-        color = "#DB15C1"
-      )
-    ## Display the training data if provided
-    if (!is.null(data_train)) {
-      gg <- gg + ggplot2::geom_point(
-        data = data_train,
+        data = samples,
         ggplot2::aes_string(
           x = names(inputs)[1],
           y = "Output",
-          col = "ID"
+          group = "Sample"
         ),
-        size = size_data_train,
-        alpha = alpha_data_train
+        color = "#FA9FB5",
+        alpha = alpha_samples
       ) +
-        ggplot2::guides(color = "none")
-    }
-    ## Display the observed data if provided
-    if (!is.null(data)) {
-      gg <- gg + ggplot2::geom_point(
-        data = data,
-        ggplot2::aes_string(
-          x = names(inputs)[1],
-          y = "Output"
-        ),
-        size = size_data,
-        shape = 18
-      )
-    }
-  } else {
-    warning(
-      "Impossible to display inputs with dimensions greater than 2. The graph ",
-      "then simply uses 'Input' as x_axis and 'Output' as y-axis. "
-    )
-    sample <- tibble::tibble(
-      "Input" = input,
-      "Output" = mvtnorm::rmvnorm(1, mean, cov) %>% as.vector()
-    )
-    gg <- ggplot2::ggplot() +
-      ggplot2::geom_line(
-        data = sample,
-        ggplot2::aes(x = .data$Input, y = .data$Output),
-        color = "#DB15C1"
-      )
+      ggplot2::guides(group = "none")
 
-    ## Display the training data if provided
-    if (!is.null(data_train)) {
-      gg <- gg + ggplot2::geom_point(
-        data = data_train,
-        ggplot2::aes(
-          x = .data$Input,
-          y = .data$Output,
-          col = .data$ID
-        ),
-        size = size_data_train,
-        alpha = alpha_data_train
-      ) +
-        ggplot2::guides(color = "none")
-    }
-    ## Display the observed data if provided
-    if (!is.null(data)) {
-      gg <- gg +
-        ggplot2::geom_point(
-          data = data,
-          ggplot2::aes(x = .data$Input, y = .data$Output),
-          size = size_data,
-          shape = 18
-        )
-    }
-    ## Display the (hyper-)prior mean process if provided
-    if (!is.null(prior_mean)) {
-      if (names(inputs)[1] %in% names(prior_mean)) {
-        gg <- gg +
-          ggplot2::geom_line(
-            data = prior_mean,
-            ggplot2::aes_string(x = names(inputs)[1], y = "Output"),
-            linetype = "dashed"
-          )
+    if(plot_mean){
+      if(is.null(pred)){
+        warning("The 'pred' argument is needed to display the mean prediction.")
       } else {
-        warning(
-          "The ",
-          names(inputs)[1],
-          " column does not exist in the ",
-          "'prior_mean' argument. The mean function cannot be displayed."
+        gg = gg + ggplot2::geom_line(
+          data = mean_pred,
+          ggplot2::aes_string(x = names(inputs)[1], y = "Mean"),
+          color = "#DB15C1"
         )
       }
+
     }
+  } else {
+    stop(
+      "Impossible to display inputs with dimensions greater than 2. Please ",
+      "provide two elements or less in the 'x_axis' argument."
+    )
   }
 
   (gg + ggplot2::theme_classic()) %>%
@@ -759,10 +739,20 @@ plot_gif <- function(pred_gp,
 #'    probabilities should be computed for heatmaps of 1-dimensional
 #'    predictions. If NULL (default), a vector of length 50 is defined, ranging
 #'    between the min and max 'Output' values contained in \code{pred}.
-#' @param heatmap A logical value indicating whether the GP prediction should be
+#' @param heatmap A logical value indicating whether the GP mixture should be
 #'    represented as a heatmap of probabilities for 1-dimensional inputs. If
 #'    FALSE (default), the mean curve (and associated Credible Interval if
 #'    available) are displayed.
+#' @param samples A logical value indicating whether the GP mixture should be
+#'    represented as a collection of samples drawn from the posterior. If
+#'    FALSE (default), the mean curve (and associated Credible Interval if
+#'    available) are displayed.
+#' @param nb_samples A number, indicating the number of samples to be drawn from
+#'    the predictive posterior distribution. For two-dimensional graphs, only
+#'    one sample can be displayed.
+#' @param plot_mean A logical value, indicating whether the mean prediction
+#'    should be displayed on the graph when \code{samples = TRUE}.
+#' @param alpha_samples A number, controlling transparency of the sample curves.
 #' @param prob_CI A number between 0 and 1 (default is 0.95), indicating the
 #'    level of the Credible Interval associated with the posterior mean curve.
 #'    If this this argument is set to 1, the Credible Interval is not displayed.
@@ -799,10 +789,15 @@ plot_magmaclust <- function(pred_clust,
                             prior_mean = NULL,
                             y_grid = NULL,
                             heatmap = FALSE,
+                            samples = FALSE,
+                            nb_samples = 50,
+                            plot_mean = TRUE,
+                            alpha_samples = 0.3,
                             prob_CI = 0.95,
                             size_data = 3,
                             size_data_train = 1,
-                            alpha_data_train = 0.5) {
+                            alpha_data_train = 0.5
+                            ) {
 
   ## Check prob_CI format
   if (prob_CI < 0 | prob_CI > 1) {
@@ -887,7 +882,45 @@ plot_magmaclust <- function(pred_clust,
     }
   }
 
-  if (all_clust) {
+  if(samples) {
+    ## Display samples drawn from the posterior mixture of GPs
+    gg <- plot_samples(
+      pred = pred_clust,
+      nb_samples = nb_samples,
+      x_input = x_input,
+      plot_mean = plot_mean,
+      alpha_samples = alpha_samples
+      )
+
+    ## Display the observed data if provided
+    if (!is.null(data)) {
+      ## Check dimension of the inputs
+      if (ncol(inputs) == 2) {
+        ## Display labels if 2-D
+        gg <- gg + ggplot2::geom_label(
+          data = data,
+          ggplot2::aes_string(
+            x = names(inputs)[1],
+            y = names(inputs)[2],
+            label = "Output",
+            fill = "Output"
+          ),
+          size = 3
+        )
+      } else if (ncol(inputs) == 1){
+        ## Display points if 1-D
+        gg <- gg + ggplot2::geom_point(
+          data = data,
+          ggplot2::aes_string(x = names(inputs)[1], y = "Output"),
+          size = size_data,
+          shape = 20
+        )
+      }
+    }
+    ## Define the adequate title
+    gtitle <- paste0("Samples from a mixture of GPs")
+
+  } else if (all_clust) {
     ## GP visualisation without Credible Interval
     gg <- plot_gp(
       pred_gp = pred_gp,
@@ -896,13 +929,12 @@ plot_magmaclust <- function(pred_clust,
       y_grid = y_grid,
       heatmap = heatmap,
       prob_CI = 0,
-      size_data = size_data,
-      size_data_train = size_data_train,
-      alpha_data_train = alpha_data_train
+      size_data = size_data
     )
 
     ## Define the adequate title
     gtitle <- paste0("Mixture of GP predictions")
+
   } else {
     ## Classic GP visualisation for cluster-specific predictions
     gg <- plot_gp(
@@ -912,9 +944,7 @@ plot_magmaclust <- function(pred_clust,
       y_grid = y_grid,
       heatmap = heatmap,
       prob_CI = prob_CI,
-      size_data = size_data,
-      size_data_train = size_data_train,
-      alpha_data_train = alpha_data_train
+      size_data = size_data
     )
 
     ## Define the adequate title
