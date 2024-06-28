@@ -31,9 +31,13 @@ sample_gp = function(
   cov <- pred_gp$cov
 
   #Draw samples and format the tibble
-  mvtnorm::rmvnorm(nb_samples, mean, cov) %>%
+  mvtnorm::rmvnorm(n = nb_samples,
+                   mean = mean,
+                   sigma = cov,
+                   checkSymmetry = FALSE) %>%
     t() %>%
-    tibble::as_tibble(.name_repair = 'unique') %>%
+    magrittr::set_colnames(1:nb_samples) %>%
+    tibble::as_tibble() %>%
     dplyr::bind_cols(inputs) %>%
     tidyr::pivot_longer(- names(inputs) ,
                         names_to= "Sample",
@@ -83,9 +87,10 @@ sample_magmaclust = function(
   weight <- pred_clust$mixture[[k]]
 
   #Draw samples and format the tibble
-  mvtnorm::rmvnorm(nb_samples, mean, cov) %>%
+  mvtnorm::rmvnorm(nb_samples, mean, cov, checkSymmetry = FALSE) %>%
     t() %>%
-    tibble::as_tibble(.name_repair = 'unique') %>%
+    magrittr::set_colnames(1:nb_samples) %>%
+    tibble::as_tibble() %>%
     dplyr::bind_cols(inputs) %>%
     tidyr::pivot_longer(- names(inputs) ,
                         names_to= "Sample",
@@ -98,7 +103,7 @@ sample_magmaclust = function(
     lapply(floop) %>%
     dplyr::bind_rows() %>%
     dplyr::group_by(.data$Sample, .data$Input) %>%
-    dplyr::summarise('Output' = sum(.data$Proba * .data$Output)) %>%
-    dplyr::ungroup() %>%
+    dplyr::summarise('Output' = sum(.data$Proba * .data$Output),
+                     .groups = "drop") %>%
     return()
 }
